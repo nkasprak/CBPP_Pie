@@ -67,7 +67,8 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
         return points;
     }
     function lineIntersectWithCircle(y, y0, Rx, Ry) {
-        return Math.sqrt((Math.pow(Rx,2)*(1 - Math.pow(y-y0, 2)/Math.pow(Ry, 2))));
+        var result = Math.sqrt((Math.pow(Rx,2)*(1 - Math.pow(y-y0, 2)/Math.pow(Ry, 2))));
+        return result;
     }
     function testPoints(y, points) {
         if (typeof(p.testLine)!=="undefined") {
@@ -96,9 +97,9 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
         var path, p1, p2, regions = [], top, bottom, pointType, bigSector, swap, center;
         function include(p1, p2, center) {
             if (side === "near") {
-                return [m*p1[0] <= m*center[0], m*p2[0] < m*center[0]];
+                return [m*p1[0] <= m*center[0], m*p2[0] <= m*center[0]];
             } else {
-                return [m*p1[0] >= m*center[0], m*p2[0] > m*center[0]];
+                return [m*p1[0] > m*center[0], m*p2[0] > m*center[0]];
             }
         }
         for (var i = 0, ii = p.sectorObjs.length; i<ii; i++) {
@@ -237,9 +238,9 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
             }
             return r;
         }(order));
-        var lineHeight = $(selector).css("font-size").replace("px","")*1.5;
+        var lineHeight = $(selector).css("font-size").replace("px","")*1.5*p.options.labelLineSeparation;
         /*start with middle label*/
-        var firstLine = order[Math.floor(order.length/2)], firstLineInSector = false;
+        var firstLine = order[Math.floor(order.length/2)];
         function testLabelInVerticalRegion(l) {
             var min, max;
             for (var i = 0, ii = nearSide.length; i<ii; i++) {
@@ -268,11 +269,12 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
             sector = order[i];
             labelCenters[sector] = labelCoords[sector][1];
         }
-         for (i = 0, ii = order.length; i<ii; i++) {
+        var lineInSector = [];
+        for (i = 0, ii = order.length; i<ii; i++) {
             sector = order[i];
+            lineInSector[sector] = false;
             if (testLabelInVerticalRegion(sector)) {
-                firstLine = sector;
-                firstLineInSector = true;
+                lineInSector[sector] = true;
             }
         }
         var sectorsLeft = order.length; 
@@ -284,7 +286,7 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
             bottom: {vertical:  center[1] + p.baseRy + lineHeight/5},
             top: {vertical: center[1] - p.baseRy - lineHeight/5}
         };
-        var region = "top";
+        var region;
         function getSectorCenter(s, y) {
             function angle(v) {
                 return 360*v/p.sectorMeta[s].total + p.options.startAngle; 
@@ -305,7 +307,10 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
         }
         var bound;
         while (sectorsLeft > 0) {
-            if (sector === firstLine && firstLineInSector) {
+            if (lineInSector[sector]) {
+                if (typeof(region)==="undefined") {
+                    region = "top";
+                }
                 /*same side, in region*/
                 var xMiddle = getSectorCenter(sector, labelCenters[sector]);
                 r[sector] = [
@@ -317,11 +322,15 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
                 //var sectorArcCenter = getSectorArcCenter(sector);
                
                // console.log(JSON.stringify(bends), sector);
+               
                 var lsector = sideIndex(labelSideRegions, sector);
                 var vCenter = (labelSideRegions[lsector][0][0] + labelSideRegions[lsector][0][1])/2;
-               
+                if (typeof(region)==="undefined") {
+                    region = labelCenters[sector] > vCenter ? "top" : "bottom";
+                }
                 var hCenter = getSectorCenter(sector, vCenter);
-                bound = center[0] - m*lineIntersectWithCircle(labelCenters[sector], center[1], p.baseRx, p.baseRy);
+                var intersection = lineIntersectWithCircle(labelCenters[sector], center[1], p.baseRx, p.baseRy);
+                bound = center[0] - m*intersection;
                 bound = Math.max(bound, center[0] - m*lineIntersectWithCircle(vCenter, center[1], p.baseRx, p.baseRy));
                 if ((vCenter > center[1]) && (labelCenters[sector] < center[1]) || (vCenter < center[1]) && (labelCenters[sector] > center[1])) {
                     bound = center[0] - m*(p.baseRx);
@@ -330,9 +339,7 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
                     bends[region].near = bound;
                 }
                 if (isNaN(bound)) {
-                    
-                    console.log("weird case");
-                    bends[region].near = hCenter[0];
+                    bends[region].near = Math.min(bends[region].near*m,hCenter[0]*m)*m;
                     r[sector] = [
                         ["labelWidth", labelCenters[sector]],
                         [hCenter[0], labelCenters[sector]],
@@ -350,11 +357,20 @@ CBPP.Pie.ListWithLinesLabel = function(p, selector) {
                 bends[region].near -= lineHeight*m;
             } else {
                 /*far side*/
+                if (typeof(region)==="undefined") {
+                    if (positionInOrder > iOrder.length / 2) {
+                        region = "bottom";
+                    } else {
+                        region = "top";
+                    }
+                }
                 var sectorArcCenter = getSectorArcCenter(sector);
                 bound = center[0] - m*lineIntersectWithCircle(labelCenters[sector], center[1], p.baseRx, p.baseRy);
                 if (typeof(bends[region].near)==="undefined") {
                     bends[region].near = bound;
-                }
+                } 
+                bends[region].near = Math.min(bends[region].near*m, bound*m)*m;
+                
                 if (bends[region].vertical > labelCenters[sector] && region==="top" ||
                     bends[region].vertical < labelCenters[sector] && region==="bottom") {
                     bends[region].vertical = labelCenters[sector];

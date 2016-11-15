@@ -9,35 +9,24 @@
 	var urlBase;
 
     CBPP.Pie.load = function(callback) {
-		CBPP.Pie.urlBase = CBPP.urlBase + "CBPP_Pie/v" + CBPP.Pie.version + "/";
+		var CBPP_URL_ROOT = CBPP.Pie.urlBase = CBPP.urlBase + "CBPP_Pie/v" + CBPP.Pie.version + "/";
 		urlBase = CBPP.Pie.urlBase;
-		var dependentScripts = [
-			"listWithLinesLabels.js",
-			"listWithLegend.js"
-		];
-		var thisPieLoaded = false, raphaelLoaded = false, outstandingScripts = 0;
-		if (typeof(Raphael)==="undefined") {
-			$.getScript(urlBase + "raphael.min.js", function() {
-				raphaelLoaded = true;
-				ready();
-			});
-		} else {
+		var thisPieLoaded = false, raphaelLoaded = false, outstandingScripts = 2;
+		var raphaelLoad = function() {
 			raphaelLoaded = true;
-		}
-		var l = document.createElement("link");
-        l.href = urlBase + "pie.css";
-        l.type = "text/css";
-        l.rel = "stylesheet";
-        document.getElementsByTagName('head')[0].appendChild(l);
+			ready();
+		};
+		CBPP.JS(CBPP_URL_ROOT + "raphael.min.js", raphaelLoad);
+		CBPP.CSS(CBPP_URL_ROOT + "pie.css", (function(){}));
 
 		var loadedScript = function() {
 			outstandingScripts--;
 			ready();
 		};
-		for (var i = 0, ii = dependentScripts.length; i<ii; i++) {
-			outstandingScripts++;
-			$.getScript(urlBase + dependentScripts[i], loadedScript);
-		}
+
+		CBPP.JS(CBPP_URL_ROOT + "listWithLinesLabels.js", loadedScript);
+		CBPP.JS(CBPP_URL_ROOT + "listWithLegend.js", loadedScript);
+
 		function ready() {
 			if (raphaelLoaded && outstandingScripts === 0) {
 				thisPieLoaded = true;
@@ -56,6 +45,7 @@
 		"#f3fbff",
 		"#f8c55b"
 	];
+		
 
     CBPP.Pie.Pie = function(selector, data, options) {
 		var p = this;
@@ -73,6 +63,7 @@
 			labelAreaWidth : 0.4,
 			labelAreaMargin : 0.1,
 			labelAreaPosition: "left",
+			labelLineSeparation:1,
 			forceSquare: false,
 			startAngle: 0,
 			hoverEasing: (function() {
@@ -223,6 +214,7 @@
 				p.options = interpolate(pr, start_options, newOptions);
 				p.draw();
 			}, FRAME_DURATION);
+			return interval;
 		};
 
 		p.labelAdjust = {
@@ -435,6 +427,7 @@
 				text = p.options.labelFormatter(i, d, t);
 			}
 			if (typeof(p.labelObjs[i])==="undefined") {
+				
 				p.labelObjs[i] = p.paper.text(center[0], center[1], text).attr(font);
 				p.labelObjs[i].mouseover(labelmouseover);
 				p.labelObjs[i].mouseout(labelmouseout);
